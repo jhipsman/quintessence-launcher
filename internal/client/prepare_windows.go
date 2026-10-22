@@ -16,7 +16,7 @@ import (
 // PrepareOptions describes the building of an isolated copy of the client.
 type PrepareOptions struct {
 	GameDir string       // install root (READ-ONLY), e.g. D:\Games\New World
-	Dest    string       // root of the copy, e.g. %LOCALAPPDATA%\AzothLauncher\client
+	Dest    string       // root of the copy, e.g. %LOCALAPPDATA%\QuintessenceLauncher\client
 	Log     func(string) // steps as text (optional)
 }
 
@@ -105,7 +105,7 @@ func Prepare(opts PrepareOptions) (string, error) {
 
 	autoexec := filepath.Join(dest, "autoexec.cfg")
 	if _, err := os.Stat(autoexec); err != nil {
-		if err := os.WriteFile(autoexec, []byte("-- Azoth: extra client cvars, one per line (name = value)\n"), 0o644); err != nil {
+		if err := os.WriteFile(autoexec, []byte("-- Quintessence: extra client cvars, one per line (name = value)\n"), 0o644); err != nil {
 			return "", err
 		}
 		logf("  autoexec.cfg created (empty)")

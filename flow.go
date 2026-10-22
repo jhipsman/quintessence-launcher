@@ -8,26 +8,26 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/KyzaBOY/azoth-launcher/internal/client"
-	"github.com/KyzaBOY/azoth-launcher/internal/config"
+	"quintessence-launcher/internal/client"
+	"quintessence-launcher/internal/config"
 )
 
 // The error texts below are written for the player: they are shown as they are
 // in the status line under Play.
 var (
-	errNoServer     = errors.New("This build has no server configured. Download the official launcher from projectazoth.com.")
-	errBadServer    = errors.New("This build has an invalid server address. Download the official launcher from projectazoth.com.")
-	errNotLoggedIn  = errors.New("Log in with Discord to play.")
-	errNoFolder     = errors.New("Choose your New World folder in Settings first.")
-	errNoGameFound  = errors.New("Couldn't find Bin64\\NewWorld.exe in your New World folder. Check it in Settings.")
-	errUnsupported  = errors.New("This New World version isn't supported. Azoth needs build 1.400.6031.")
-	errPatchFailed  = errors.New("Couldn't patch the game, so it was not started. Check that New World is build 1.400.6031 and try again.")
-	errBadAccountAt = errors.New("This build has an invalid account server address. Download the official launcher from projectazoth.com.")
+	errNoServer    = errors.New("No server is set. Enter the server address in Settings.")
+	errBadServer   = errors.New("The server address is invalid. Use host:port, like 127.0.0.1:6000.")
+	errNoName      = errors.New("Choose a player name in Settings first.")
+	errBadName     = errors.New("Player names are 3 to 32 letters, digits, - or _.")
+	errNoFolder    = errors.New("Choose your New World folder in Settings first.")
+	errNoGameFound = errors.New("Couldn't find Bin64\\NewWorld.exe in your New World folder. Check it in Settings.")
+	errUnsupported = errors.New("This New World version isn't supported. Quintessence needs build 1.400.6031.")
+	errPatchFailed = errors.New("Couldn't patch the game, so it was not started. Check that New World is build 1.400.6031 and try again.")
 )
 
 // copyFolderName is the folder the game copy gets inside the folder the player
 // picks for it, so the copy never spreads its files over that folder.
-const copyFolderName = "AzothClient"
+const copyFolderName = "QuintessenceClient"
 
 // copyRoot is the folder of the isolated game copy for these settings.
 func copyRoot(c config.Config) string {
@@ -38,7 +38,7 @@ func copyRoot(c config.Config) string {
 }
 
 // copyDirFor turns the folder the player picked for the copy into the copy's
-// own folder: <picked>\AzothClient, or the pick itself when it already is one.
+// own folder: <picked>\QuintessenceClient, or the pick itself when it already is one.
 func copyDirFor(picked string) string {
 	p := filepath.Clean(picked)
 	if strings.EqualFold(filepath.Base(p), copyFolderName) {
@@ -59,13 +59,42 @@ const (
 	statusStarting  = "Starting…"
 )
 
-// gateway is the game server this build was compiled for.
+// gateway is the game server the client connects to.
 type gateway struct {
 	host string // host or IP, no port
 	addr string // host:port, for -GatewayAddr
 }
 
-// parseGateway checks the build-time server settings.
+// serverFor picks the server: the one in the settings (host:port) or, when that
+// is empty, the one the build was made for.
+func serverFor(c config.Config) (gateway, error) {
+	s := strings.TrimSpace(c.Server)
+	if s == "" {
+		return parseGateway(gatewayHost, gatewayPort)
+	}
+	host, port, err := net.SplitHostPort(s)
+	if err != nil {
+		return gateway{}, errBadServer
+	}
+	return parseGateway(host, port)
+}
+
+// checkName validates a player name: it goes into the game as the persona, so
+// it is kept to plain ASCII letters, digits, - and _.
+func checkName(name string) error {
+	if len(name) < 3 || len(name) > 32 {
+		return errBadName
+	}
+	for _, c := range name {
+		ok := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_'
+		if !ok {
+			return errBadName
+		}
+	}
+	return nil
+}
+
+// parseGateway checks a server host and port.
 func parseGateway(host, port string) (gateway, error) {
 	host = strings.TrimSpace(host)
 	if host == "" {
@@ -86,9 +115,7 @@ func parseGateway(host, port string) (gateway, error) {
 //
 //  1. the folder is resolved (the install root, its Bin64 folder or NewWorld.exe);
 //  2. NewWorld.exe must be the supported build (normalized sha256);
-//  3. the Azoth logo pak goes into the install's assets folder (the one file
-//     the launcher adds to an install; see client.InstallLogo);
-//  4. if the folder is an install of the game, the game never runs there: it
+//  3. if the folder is an install of the game, the game never runs there: it
 //     runs from an isolated copy in copyDir, which is built the first time and
 //     reused while its exe and its assets link still match the install.
 //
@@ -116,10 +143,6 @@ func prepareGame(gameDir, copyDir string, status func(string)) (string, error) {
 	case sum != client.ExpectedSHA256:
 		return "", errUnsupported
 	}
-
-	// The Azoth logo at the end of the tutorial (internal/client/logo.go). It is
-	// cosmetic: if it cannot be written, the game still starts with its own logo.
-	_ = client.InstallLogo(filepath.Join(root, "assets"))
 
 	if !client.IsSteamInstall(binDir) {
 		return binDir, nil

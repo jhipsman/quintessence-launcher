@@ -24,7 +24,7 @@ import (
 //     rsi,[rax]` fetches. The two `jne` that leave early (persona already
 //     filled in) become nops, so the function always reaches the replaced spot
 //     and copies our string over it. With the patch the persona becomes the
-//     Discord login ticket. (Test round of 2026-10-20: with the lea alone the
+//     player name from the settings. (Test round of 2026-10-20: with the lea alone the
 //     persona stayed the Windows user name, because the auth manager already
 //     returns the name.)
 
@@ -89,7 +89,7 @@ func (r StringRedirect) Patched() []byte {
 	return append(b, r.Tail...)
 }
 
-// validRedirectValue: visible ASCII only, no spaces (a host or a ticket).
+// validRedirectValue: visible ASCII only, no spaces (a host or a player name).
 func validRedirectValue(v string) error {
 	if v == "" || len(v) > MaxRedirectLen {
 		return fmt.Errorf("value must have 1..%d bytes (got %d)", MaxRedirectLen, len(v))

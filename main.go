@@ -1,8 +1,9 @@
-// Azoth Launcher starts the original New World client against the Azoth fan
+// Quintessence Launcher starts the original New World client against a private
 // server. It applies a few small patches to the game process in memory (never
-// to the game files), signs the player in with Discord and plays from an
-// isolated copy of the game: the install is never run, and the only file added
-// to it is the Azoth logo pak (internal/client/logo.go).
+// to the game files), passes the player name in as the login persona and plays
+// from an isolated copy of the game: the install is never run or changed.
+//
+// Forked from Azoth Launcher (github.com/KyzaBOY/azoth-launcher, MIT).
 package main
 
 import (
@@ -20,23 +21,20 @@ var assets embed.FS
 // Version is the launcher version shown in the footer.
 const Version = "0.1.0"
 
-// Build-time settings. The server address is deliberately NOT in the source:
-// official builds get it from scripts/release.ps1 through
+// Build-time default server. Release builds get it from scripts/release.ps1 through
 //
 //	wails build -ldflags "-X main.gatewayHost=<host> -X main.gatewayPort=<port>"
 //
-// A build without them starts, but Play refuses to run. accountURL can be
-// overridden the same way (-X main.accountURL=...), e.g. for a local dev build.
+// The Server setting overrides it. With neither, Play refuses to run.
 var (
 	gatewayHost string
 	gatewayPort string
-	accountURL  = "https://projectazoth.com"
 )
 
 func main() {
 	app := NewApp()
 	err := wails.Run(&options.App{
-		Title:         "Azoth",
+		Title:         "Quintessence",
 		Width:         1280,
 		Height:        760,
 		MinWidth:      1280,

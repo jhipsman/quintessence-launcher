@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds a release of Azoth Launcher with your server address baked in.
+  Builds a release of Quintessence Launcher with your server address baked in.
 
 .DESCRIPTION
   The server address is not part of the source code. This script reads it from
@@ -10,7 +10,7 @@
       GATEWAY_PORT=6000
 
   runs `wails build -clean` with those values passed to the linker, and writes
-  build\bin\AzothLauncher.exe.sha256 ("<hex>  AzothLauncher.exe") next to the exe.
+  build\bin\QuintessenceLauncher.exe.sha256 ("<hex>  QuintessenceLauncher.exe") next to the exe.
 
   Works with Windows PowerShell 5.1 and PowerShell 7.
 
@@ -64,12 +64,12 @@ if ($wails) {
 
 # ---- build --------------------------------------------------------------------
 $ldflags = "-X main.gatewayHost=$gatewayHost -X main.gatewayPort=$gatewayPort"
-Write-Host "Building AzothLauncher (server settings from release.env)..."
+Write-Host "Building QuintessenceLauncher (server settings from release.env)..."
 & $wailsExe build -clean -ldflags $ldflags
 if ($LASTEXITCODE -ne 0) { Fail "wails build failed (exit code $LASTEXITCODE)." }
 
-$exe = Join-Path $root 'build\bin\AzothLauncher.exe'
-if (-not (Test-Path -LiteralPath $exe)) { Fail "build\bin\AzothLauncher.exe was not produced." }
+$exe = Join-Path $root 'build\bin\QuintessenceLauncher.exe'
+if (-not (Test-Path -LiteralPath $exe)) { Fail "build\bin\QuintessenceLauncher.exe was not produced." }
 
 # ---- checksum -------------------------------------------------------------------
 $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -81,7 +81,7 @@ try {
     $sha.Dispose()
 }
 $sumFile = "$exe.sha256"
-[System.IO.File]::WriteAllText($sumFile, "$hash  AzothLauncher.exe`n", [System.Text.Encoding]::ASCII)
+[System.IO.File]::WriteAllText($sumFile, "$hash  QuintessenceLauncher.exe`n", [System.Text.Encoding]::ASCII)
 
 Write-Host ""
 Write-Host "Done."

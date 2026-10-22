@@ -10,10 +10,10 @@ import (
 func TestDataDir(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv("LOCALAPPDATA", base)
-	if got, want := DataDir(), filepath.Join(base, "AzothLauncher"); got != want {
+	if got, want := DataDir(), filepath.Join(base, "QuintessenceLauncher"); got != want {
 		t.Fatalf("DataDir = %q, want %q", got, want)
 	}
-	if got, want := Path(), filepath.Join(base, "AzothLauncher", "config.json"); got != want {
+	if got, want := Path(), filepath.Join(base, "QuintessenceLauncher", "config.json"); got != want {
 		t.Fatalf("Path = %q, want %q", got, want)
 	}
 }
@@ -49,8 +49,8 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("config.json = %s", raw)
 	}
 
-	// overwrite
-	want.GameDir = `D:\Games\New World`
+	// overwrite, with every field
+	want = Config{GameDir: `D:\Games\New World`, CopyDir: `E:\QuintessenceClient`, PlayerName: "Alice", Server: "127.0.0.1:6000"}
 	if err := Save(want); err != nil {
 		t.Fatal(err)
 	}

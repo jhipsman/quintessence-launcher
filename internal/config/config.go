@@ -1,7 +1,8 @@
-// Package config keeps the launcher's settings, the New World folder and where
-// the isolated game copy lives, in %LOCALAPPDATA%\AzothLauncher\config.json
-// (per-user, no registry, no admin). The same directory holds the account
-// session and, unless the player picks another folder, the game copy.
+// Package config keeps the launcher's settings (the player name, the New World
+// folder, where the isolated game copy lives and an optional server address) in
+// %LOCALAPPDATA%\QuintessenceLauncher\config.json (per-user, no registry, no
+// admin). Unless the player picks another folder, the same directory holds the
+// game copy.
 package config
 
 import (
@@ -19,15 +20,20 @@ const FileName = "config.json"
 type Config struct {
 	// GameDir is the folder the player picked: the New World install root
 	// (the one with Bin64\NewWorld.exe) or its Bin64 folder. It is read-only
-	// for Azoth; the game runs from an isolated copy.
+	// for the launcher; the game runs from an isolated copy.
 	GameDir string `json:"gameDir"`
-	// CopyDir is the folder of the isolated game copy (an AzothClient folder
+	// CopyDir is the folder of the isolated game copy (a QuintessenceClient folder
 	// inside the one the player picked). Empty means the default,
 	// <DataDir>\client.
 	CopyDir string `json:"copyDir,omitempty"`
+	// PlayerName goes into the game as the login persona.
+	PlayerName string `json:"playerName,omitempty"`
+	// Server is the game server as host:port. Empty means the one the build
+	// was made for (-X main.gatewayHost / main.gatewayPort).
+	Server string `json:"server,omitempty"`
 }
 
-// DataDir is %LOCALAPPDATA%\AzothLauncher.
+// DataDir is %LOCALAPPDATA%\QuintessenceLauncher.
 func DataDir() string {
 	base := os.Getenv("LOCALAPPDATA")
 	if base == "" {
@@ -37,7 +43,7 @@ func DataDir() string {
 			base = "."
 		}
 	}
-	return filepath.Join(base, "AzothLauncher")
+	return filepath.Join(base, "QuintessenceLauncher")
 }
 
 // Path is the full path of config.json.

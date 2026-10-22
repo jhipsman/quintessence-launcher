@@ -1,11 +1,11 @@
-/* Azoth Launcher: "corrupted Aeternum" look. Steel-black and charcoal, rising
+/* Quintessence Launcher: "corrupted Aeternum" look. Steel-black and charcoal, rising
    embers, smoke, cracks and crimson corruption lightning, old-gold frames.
    Original artwork; no texture, logo or art from the game. The emblem
    (reliquary) exists only as the app icon, not inside the window.
    Fonts: IM FELL DW Pica is the text font of New World itself (OFL, the game
    ships the same one); it also stands in for Caslon Antique (commercial,
    URW++) in the uppercase titles. Archivo (OFL) replaces Nimbus Sans Novus
-   (commercial) in labels and numbers. Cinzel Decorative only in the AZOTH title. */
+   (commercial) in labels and numbers. Cinzel Decorative only in the QUINTESSENCE title. */
 
 @font-face { font-family: "IM Fell DW Pica"; src: url("../fonts/IMFellDWPica-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: block; }
 @font-face { font-family: "IM Fell DW Pica"; src: url("../fonts/IMFellDWPica-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; font-display: block; }
@@ -122,8 +122,8 @@ a { color: var(--gold); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .hero-title {
-  margin: 0; font-family: var(--font-title); font-weight: 700; font-size: 96px; line-height: 1;
-  letter-spacing: .2em; text-transform: uppercase; padding-left: .2em;
+  margin: 0; font-family: var(--font-title); font-weight: 700; font-size: 64px; line-height: 1;
+  letter-spacing: .12em; text-transform: uppercase; padding-left: .12em;
   background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 45%, var(--gold-2) 72%, #d2ad5c 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 2px 0 rgba(40,12,6,.8)) drop-shadow(0 0 26px rgba(224,52,31,.32));

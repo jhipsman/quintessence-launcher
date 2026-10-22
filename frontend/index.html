@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Azoth</title>
+<title>Quintessence</title>
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
@@ -23,7 +23,7 @@
 <!-- Own title bar (the window has no native frame) -->
 <header class="titlebar" style="--wails-draggable:drag">
   <div class="tb-brand">
-    <span class="tb-name">Azoth</span>
+    <span class="tb-name">Quintessence</span>
   </div>
   <div class="tb-actions" style="--wails-draggable:no-drag">
     <button class="tb-btn" id="btn-settings" title="Settings" aria-label="Settings">
@@ -45,33 +45,31 @@
 
   <section class="content">
     <div class="hero">
-      <h1 class="hero-title">Azoth</h1>
-      <p class="hero-tag">New World: Aeternum</p>
+      <h1 class="hero-title">Quintessence</h1>
+      <p class="hero-tag">A private New World server</p>
       <svg class="divider"><use href="#divider"/></svg>
 
       <section class="panel panel-account">
         <header class="panel-head">
-          <h2>Account</h2>
+          <h2>Player</h2>
           <span class="panel-rule"></span>
         </header>
         <div class="account-body" id="account-out">
           <div class="account-col">
-            <button type="button" class="btn-brass btn-sm" id="btn-login">Log in with Discord</button>
-            <p class="account-note" id="account-note">Your characters are tied to your Discord account.</p>
-            <p class="account-note" id="account-wait" hidden><span class="spinner"></span>Waiting for the browser… <button type="button" class="btn-mini" id="btn-login-cancel">Cancel</button></p>
+            <button type="button" class="btn-brass btn-sm" id="btn-name">Choose a player name</button>
+            <p class="account-note">The server knows you by this name.</p>
           </div>
         </div>
         <div class="account-body" id="account-in" hidden>
           <div class="avatar" id="avatar">?</div>
           <div class="account-col">
             <div class="account-who">
-              <span class="account-sub">Logged in as</span>
+              <span class="account-sub">Playing as</span>
               <span class="account-name" id="account-name">—</span>
             </div>
-            <button type="button" class="btn-ghost btn-sm" id="btn-logout">Log out</button>
+            <button type="button" class="btn-ghost btn-sm" id="btn-rename">Change</button>
           </div>
         </div>
-        <p class="account-err" id="account-err" hidden></p>
       </section>
 
       <button class="btn-play" id="btn-play">
@@ -99,13 +97,27 @@
     </header>
     <form id="form-settings" autocomplete="off">
       <label class="field">
+        <span class="field-label">Player name</span>
+        <div class="field-row">
+          <input type="text" id="in-name" spellcheck="false" maxlength="32" placeholder="3 to 32 letters, digits, - or _">
+        </div>
+        <span class="field-help">Sent to the server as your login name.</span>
+      </label>
+      <label class="field">
+        <span class="field-label">Server</span>
+        <div class="field-row">
+          <input type="text" id="in-server" spellcheck="false" placeholder="host:port">
+        </div>
+        <span class="field-help" id="server-help">The game server, as <span class="mono">host:port</span> (for a server on this PC: <span class="mono">127.0.0.1:6000</span>).</span>
+      </label>
+      <label class="field">
         <span class="field-label">New World folder</span>
         <div class="field-row">
           <input type="text" id="in-game" spellcheck="false" placeholder="C:\…\New World">
           <button type="button" class="btn-ghost btn-sm" id="btn-browse">Browse…</button>
           <button type="button" class="btn-ghost btn-sm" id="btn-search">Search</button>
         </div>
-        <span class="field-help">The folder that holds <span class="mono">Bin64\NewWorld.exe</span>. Azoth never changes its game files: the game runs from its own copy.</span>
+        <span class="field-help">The folder that holds <span class="mono">Bin64\NewWorld.exe</span>. The launcher never changes its game files: the game runs from its own copy.</span>
       </label>
       <p class="search-status" id="search-status" hidden>
         <span class="spinner" id="search-spinner" hidden></span><span id="search-text"></span>
@@ -118,7 +130,7 @@
           <input type="text" id="in-copy" spellcheck="false" placeholder="Default">
           <button type="button" class="btn-ghost btn-sm" id="btn-browse-copy">Browse…</button>
         </div>
-        <span class="field-help">Where Azoth keeps its copy of <span class="mono">Bin64</span> (about 270 MB), in an <span class="mono">AzothClient</span> folder. Leave it empty for the default. Changing it deletes the old copy.</span>
+        <span class="field-help">Where the launcher keeps its copy of <span class="mono">Bin64</span> (about 270 MB), in a <span class="mono">QuintessenceClient</span> folder. Leave it empty for the default. Changing it deletes the old copy.</span>
       </label>
       <div class="modal-actions">
         <span class="grow"></span>

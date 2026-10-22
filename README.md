@@ -1,91 +1,52 @@
-# Azoth Launcher
+# Quintessence Launcher
 
-This is the launcher of **[Project Azoth](https://projectazoth.com)**, a fan-run server for *New World*, and the program players will use to connect to the Azoth playtest. It starts your own copy of the original game client against the Azoth server, signs you in with Discord and gets out of the way.
+The launcher for **Quintessence**, a private *New World* server project. It starts your own copy of the original game client against a server you choose, with the name you choose, and gets out of the way.
 
-## Why the source is open
+This is a fork of [Azoth Launcher](https://github.com/KyzaBOY/azoth-launcher) by tempesTT (MIT). All the reverse engineering of the client (the version check, the isolated game copy and the four in-memory patches) is theirs. What this fork changes:
 
-A launcher that starts your game, writes into its memory and signs you in is exactly the kind of program you should not have to take on trust. So the whole thing is here, every line of it. There is nothing to hide: no telemetry, no tracking, no hidden downloads, no secrets. Read it, build it, run the tests, and tell us if you find anything. Security reports are welcome as GitHub issues or as a DM to Kyza on the Azoth Discord (linked from [projectazoth.com](https://projectazoth.com)).
+- **No Discord login and no account website.** You set a **player name** in Settings, and the launcher passes it into the game as the login persona.
+- **The server can be set in Settings** (`host:port`, for example `127.0.0.1:6000` for a server running on your own PC). A build can still have a default server baked in.
+- **No logo pak.** The launcher adds no files to your New World install.
+- Renamed throughout: `%LOCALAPPDATA%\QuintessenceLauncher`, the `QuintessenceClient` copy folder.
 
-The only thing that is not in the source is the address of the game server. It is passed in at build time (see [Build](#build)), so the code stays the same no matter which server a build points to.
-
-**Releases.** There is no release yet. The playtest build will be published on this repository's Releases page, built from this source, together with its sha256.
-
-> **Azoth is a fan project. It is not affiliated with, endorsed by or connected to Amazon or Amazon Games.** *New World* is a trademark of Amazon.com, Inc. or its affiliates. You need your own copy of the game, and nothing from the game is included in this repository.
+> **Quintessence is a fan project. It is not affiliated with, endorsed by or connected to Amazon or Amazon Games, or with Project Azoth.** *New World* is a trademark of Amazon.com, Inc. or its affiliates. You need your own copy of the game, and nothing from the game is included in this repository.
 
 ## What it does
 
-1. **Finds your game.** You pick the New World folder (or press *Search*, which looks through your Steam libraries and your local drives).
-2. **Checks the version.** Only one build is supported, `1.400.6031.6004151`. The launcher computes the sha256 of `NewWorld.exe` and refuses anything else.
-3. **Plays from a copy.** Your install is never run, and no game file in it is ever changed (the one file the launcher adds is the logo pak below). On first Play the launcher builds an isolated copy in `%LOCALAPPDATA%\AzothLauncher\client` (the `Bin64` folder plus a few small config files, about 270 MB; the large `assets` folder is an NTFS junction back to your install, so it takes no extra space). The copy is reused until the game files change. You can put it somewhere else in Settings (*Game copy folder*): it then lives in an `AzothClient` folder inside the folder you pick, and the old copy is deleted (the `assets` junction is removed as a link, never the install behind it).
-4. **Signs you in.** *Log in with Discord* opens your browser on projectazoth.com. Play stays disabled until you are logged in.
-5. **Adds the Azoth logo.** See [The Azoth logo](#the-azoth-logo).
-6. **Starts the game suspended, patches it in memory, resumes it.** The four patches are listed below. The game does not execute a single instruction before every patch has been written and read back; if anything looks unexpected (a different build, bytes that are not the ones we expect), the process is killed instead of resumed.
-
-The launcher has no log window, no server list and no news feed. The only feedback is one status line under the Play button.
+1. **Finds your game.** You pick the New World folder in Settings (or press *Search*, which looks through your Steam libraries and local drives).
+2. **Checks the version.** Only build `1.400.6031.6004151` is supported. The launcher computes the sha256 of `NewWorld.exe` and refuses anything else.
+3. **Plays from a copy.** Your install is never run or changed. On first Play the launcher builds an isolated copy in `%LOCALAPPDATA%\QuintessenceLauncher\client` (the `Bin64` folder plus a few small config files, about 270 MB). The large `assets` folder is an NTFS junction back to your install, so it takes no extra space. You can move the copy in Settings.
+4. **Starts the game suspended, patches it in memory, resumes it.** If any patch site doesn't hold the expected bytes, the process is killed instead of resumed.
 
 ## The four in-memory patches
 
-All four are written into the running game process only. No file on disk is changed, and nothing stays hooked after the patch is applied.
+All four are written into the running game process only. No file on disk is changed.
 
 | # | What it changes | Why |
 |---|---|---|
-| 1 | **DTLS trust.** One conditional jump in the game's secure-socket initialization becomes an unconditional jump. | The game validates the world server's certificate. The Azoth server uses its own self-signed certificate, so without this the connection is refused. |
-| 2 | **Menu ping over ICMP.** One pointer in the region pinger's table is switched from the string `https` to the string `icmp`. | The menu pinger normally speaks HTTPS to an Amazon endpoint and would show 9999 ms. |
-| 3 | **Ping host.** The place where the pinger reads its target host now reads a string the launcher wrote, which is the Azoth server's host. | So the menu ping measures the Azoth server instead of an Amazon host name. No `hosts` file edit is needed. |
-| 4 | **Persona.** The place where the client reads its login name now reads a string the launcher wrote, which is your Discord ticket. | The Azoth server learns who you are from the ticket instead of your Windows user name. |
-
-Patches 3 and 4 write their strings into unused space at the end of the game's `.rdata` section, and only after checking that the space is empty. Patch 4 also turns two conditional jumps into no-ops, so the login code always reaches the spot that reads the ticket (otherwise it stops early with your Windows user name).
+| 1 | **DTLS trust.** One conditional jump in the game's secure-socket initialization becomes an unconditional jump. | So the client accepts a server with a self-signed certificate. |
+| 2 | **Menu ping over ICMP.** One pointer in the region pinger's table switches from `https` to `icmp`. | The menu pinger would otherwise talk HTTPS to an Amazon endpoint. |
+| 3 | **Ping host.** The pinger reads its target host from a string the launcher wrote. | So the menu ping measures your server. |
+| 4 | **Persona.** The login code reads the player name from a string the launcher wrote. | So the server learns the player name instead of the Windows user name. |
 
 Every patch site, with its original and new bytes, is in `internal/client/client.go` and `internal/client/redirect.go`.
 
-## Security notes
+**Security note:** patch 1 turns off the client's check of the server certificate. The client will talk to whatever answers at the server address, so only connect to servers you trust, on networks you trust. There is no password: the player name is sent as-is, so a server that needs real accounts has to add its own authentication.
 
-Being open means being honest about the trade-offs too:
+## What is stored
 
-- **Patch 1 turns off the game's check of the server certificate.** The game will talk to whatever answers at the server address the launcher gave it, without verifying who that is. The launcher always gives it the address baked into the build, but on a network you do not trust, someone in the middle could pretend to be the server. What they could get is your Play ticket, which is only good for Azoth and expires in 24 hours. Your Discord password and your Discord token never reach the launcher or the game.
-- **The Discord session** (30 days) is the valuable part, and it only ever travels to the account site over HTTPS. The launcher refuses plain `http` for anything other than `localhost`, does not follow redirects, and keeps the session encrypted with DPAPI.
-- **The loopback login listener** accepts exactly one callback and only during an open login. The page it shows is a fixed text; nothing from the URL is reflected into it.
-
-## The Azoth logo
-
-The game shows its title logo on the title screen ("press any button") and at the end of the tutorial. The launcher swaps both for the Azoth logo, and this is the only thing it ever puts on disk inside your install:
-
-- The game loads every `.pak` in its `assets` folder, so the launcher writes a small pak of its own there (about 1 MB) under two names, `00_azoth_logo.pak` and `zz_azoth_logo.pak`. Two names, one sorted before the game's paks and one after, so it wins however the engine picks between two paks that hold the same file.
-- The pak holds exactly two files, `lyshineui/images/frontend/newworldlogo.dds` (title screen) and `lyshineui/images/hud/tutorialmessage/outrologo.dds` (tutorial), our artwork at the same size as the original textures. No game file is changed, renamed or deleted; deleting the two paks puts everything back as it was.
-- The artwork is `internal/client/logo/titlelogo.png` and `outrologo.png`. `scripts/make-logo.py` turns them into the `.dds` files embedded in the launcher; the pak is built from it on the fly, byte for byte the same every time.
-
-## What it does not do
-
-- It does **not** change, rename or delete any file of your New World install. The only file it adds there is the logo pak above.
-- It does **not** edit the `hosts` file, install a proxy, load a DLL or install a driver, and it never asks for administrator rights. Everything lives under your own user profile.
-- It does **not** connect you to Amazon's servers; it only starts the client pointed at the Azoth server.
-- It does **not** download the game, and it does **not** work with other builds of it.
-- It does **not** send anything anywhere except the two requests of the Discord login to the account site (code exchange and Play ticket) and the game's own traffic to the game server.
-- It contains **no secrets**. A build contains the address of the server it was made for and the public address of the account site, nothing else. Who is allowed to play is decided by the server's access list; the launcher has no way to grant anyone access.
-
-## Discord login: what is stored and where
-
-The login follows the native-app pattern (RFC 8252) with PKCE:
-
-1. The launcher listens on `127.0.0.1` on a random port, only while a login is open (at most five minutes), and opens your browser on `https://projectazoth.com`.
-2. After you approve on Discord, the site sends the browser back to that loopback address with a single-use code. The code is only worth something together with a secret verifier that never left the launcher.
-3. The launcher exchanges the code for a **session** (valid for 30 days).
-
-What is kept on your PC, in `%LOCALAPPDATA%\AzothLauncher`:
+In `%LOCALAPPDATA%\QuintessenceLauncher`:
 
 | File | Content |
 |---|---|
-| `account.dat` | Your Discord id, your Discord name and the session token, encrypted with Windows **DPAPI** (only your Windows user, on this PC, can decrypt it). *Log out* deletes it. |
-| `config.json` | Your settings: `{"gameDir": "<the New World folder you picked>", "copyDir": "<the game copy folder, if you picked one>"}`. |
-| `client\` | The isolated game copy described above, unless you picked another folder for it. |
-
-On every Play the launcher trades the session for a **ticket** (valid for 24 hours). The ticket goes straight into the game process as the persona. It is never written to disk and never logged or shown. If the server answers that your Discord account is not on the access list, you see a message and your session is left alone.
+| `config.json` | `{"gameDir": "...", "copyDir": "...", "playerName": "...", "server": "host:port"}` |
+| `client\` | The isolated game copy, unless you picked another folder for it. |
 
 ## Requirements
 
-- Windows 10 or 11, 64-bit, with the WebView2 runtime (already part of Windows 11 and of current Edge installs).
-- Your own copy of *New World* at build `1.400.6031.6004151` (sha256 of the unpatched `NewWorld.exe`: `8654f01d324636d9f74f1c793b0cc4a417c3c5fa9847d9913c358ca29e0fdc8e`).
-- A Discord account that the server's access list accepts.
+- Windows 10 or 11, 64-bit, with the WebView2 runtime.
+- Your own copy of *New World* at build `1.400.6031.6004151` (sha256 of `NewWorld.exe`: `8654f01d324636d9f74f1c793b0cc4a417c3c5fa9847d9913c358ca29e0fdc8e`).
+- A game server that speaks this client's protocol.
 
 ## Build
 
@@ -93,40 +54,30 @@ You need Go 1.26 or newer and the [Wails v2](https://wails.io) CLI:
 
 ```
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
+wails build
 ```
 
-**Dev build.** `wails build` produces `build\bin\AzothLauncher.exe`. The server address is deliberately not in the source, so a plain build starts and shows the screen, but Play refuses with *"This build has no server configured"*. To point a dev build at a server, pass it to the linker:
+That gives you `build\bin\QuintessenceLauncher.exe`. With no default server baked in, players enter one in Settings. To bake one in:
 
 ```
 wails build -ldflags "-X main.gatewayHost=your.server.host -X main.gatewayPort=6000"
 ```
 
-The account site defaults to `https://projectazoth.com`. For a local account server you can override it with `-X main.accountURL=http://localhost:8090` (plain `http` is only accepted for `localhost` and `127.0.0.1`).
+Or copy `release.env.example` to `release.env`, fill it in and run `powershell -ExecutionPolicy Bypass -File scripts\release.ps1`. That also writes a `.sha256` file next to the exe.
 
-**Release build for your own server.** Copy `release.env.example` to `release.env` (it is gitignored), set `GATEWAY_HOST` and `GATEWAY_PORT`, then run:
+**Tests.** `go test ./...` on Windows. If you set `NW_CLIENT_BIN` to a `Bin64` folder of the supported build, one extra test also checks the patch sites against the real `NewWorld.exe`.
 
-```
-powershell -ExecutionPolicy Bypass -File scripts\release.ps1
-```
-
-It runs `wails build -clean` with your values baked in and writes `build\bin\AzothLauncher.exe.sha256` (`<sha256>  AzothLauncher.exe`) next to the executable.
-
-**Tests.** `go test ./...` runs everything. If you set `AZOTH_CLIENT_BIN` to a `Bin64` folder of the supported build, one extra test also checks the patch sites against the real `NewWorld.exe`.
-
-**The screen without Wails.** `frontend\index.html` also opens in a plain browser with sample data (`frontend\js\bridge.js`), which is handy for working on the look: `?account=1` starts logged in, `?screen=settings` opens the settings dialog, `?search=none|one|many` picks what Search finds.
+**The screen without Wails.** `frontend\index.html` also opens in a plain browser with sample data (`frontend\js\bridge.js`): `?name=Alice` starts with a name set, `?screen=settings` opens Settings, `?search=none|one|many` picks what Search finds.
 
 ## Layout
 
 | Path | What is there |
 |---|---|
 | `main.go`, `app.go`, `flow.go` | Wails app, the methods the screen can call, and the Play pipeline. |
-| `internal/client` | The game side: version check, isolated copy, search for installs, launching and the in-memory patches. |
-| `internal/account` | Discord login (loopback + PKCE), ticket request, DPAPI session store. |
+| `internal/client` | The game side: version check, isolated copy, install search, launching and the in-memory patches. |
 | `internal/config` | `config.json`. |
 | `frontend/` | The screen: plain HTML, CSS and JavaScript, with its fonts. |
-| `internal/client/logo/` | The Azoth logo: the artwork (`titlelogo.png`, `outrologo.png`) and the textures built from it (`.dds`). |
 | `scripts/release.ps1` | Release build. |
-| `scripts/make-logo.py` | Rebuilds the logo `.dds` files from their PNGs (Python + Pillow). |
 
 ## License
 

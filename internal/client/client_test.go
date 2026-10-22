@@ -269,7 +269,7 @@ func TestRemoveCopy(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(gameAssets, "game.pak"), []byte("pak"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	dir := mkInstall(t, filepath.Join(t.TempDir(), "AzothClient"))
+	dir := mkInstall(t, filepath.Join(t.TempDir(), "QuintessenceClient"))
 	for _, f := range append(append([]string{}, rootFiles...), "autoexec.cfg", "Default.log") {
 		if err := os.WriteFile(filepath.Join(dir, f), []byte(f), 0o644); err != nil {
 			t.Fatal(err)
@@ -290,7 +290,7 @@ func TestRemoveCopy(t *testing.T) {
 	}
 
 	// something else in the folder stays, and so does the folder
-	dir2 := mkInstall(t, filepath.Join(t.TempDir(), "AzothClient"))
+	dir2 := mkInstall(t, filepath.Join(t.TempDir(), "QuintessenceClient"))
 	if err := os.WriteFile(filepath.Join(dir2, "notes.txt"), []byte("mine"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestRemoveCopy(t *testing.T) {
 	if err := RemoveCopy(game); err == nil || !hasExe(game) {
 		t.Fatalf("an install was accepted (%v)", err)
 	}
-	real := mkInstall(t, filepath.Join(t.TempDir(), "AzothClient"))
+	real := mkInstall(t, filepath.Join(t.TempDir(), "QuintessenceClient"))
 	if err := os.MkdirAll(filepath.Join(real, "assets"), 0o755); err != nil {
 		t.Fatal(err)
 	}

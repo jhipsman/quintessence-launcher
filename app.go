@@ -8,48 +8,30 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/KyzaBOY/azoth-launcher/internal/account"
-	"github.com/KyzaBOY/azoth-launcher/internal/client"
-	"github.com/KyzaBOY/azoth-launcher/internal/config"
+	"quintessence-launcher/internal/client"
+	"quintessence-launcher/internal/config"
 )
 
 // Events sent to the frontend (runtime.EventsOn on the JS side).
 const (
-	evBusy    = "app:busy"        // bool: Play or the login is running
-	evAccount = "account:changed" // AccountInfo: login, logout or an expired session
-	evStatus  = "play:status"     // string: the status line under Play
-
-	ticketTimeout = 10 * time.Second // asking the account server for the Play ticket
+	evBusy   = "app:busy"    // bool: Play is running
+	evStatus = "play:status" // string: the status line under Play
 )
-
-// msgNotAllowed is what a player sees when the server's access list refuses
-// their Discord account (HTTP 403 on login or on the Play ticket).
-const msgNotAllowed = "Your Discord account doesn't have access yet. The playtest is closed for now."
 
 // App is the object exposed to the frontend (window.go.main.App).
 type App struct {
 	ctx context.Context
 
 	mu           sync.Mutex
-	loginCancel  context.CancelFunc // Discord login in progress (CancelLogin)
 	searchCancel context.CancelFunc // folder search in progress (CancelSearch)
 	cfg          config.Config
 	busy         bool
 
 	// emit sends an event to the frontend. It is a no-op until startup, and tests replace it.
 	emit func(event string, data ...any)
-}
-
-// AccountInfo is the Discord login the screen shows (it never carries the session or the ticket).
-type AccountInfo struct {
-	LoggedIn bool   `json:"loggedIn"`
-	ID       string `json:"id"`      // Discord id
-	Name     string `json:"name"`    // Discord name
-	Expires  int64  `json:"expires"` // end of the session (Unix, s)
 }
 
 // PlayResult is the outcome of Launch. Error is a sentence for the player.
@@ -106,12 +88,25 @@ func (a *App) GetVersion() string { return Version }
 // GetConfig returns the current settings.
 func (a *App) GetConfig() config.Config { return a.snapshot() }
 
-// SaveConfig saves the settings. The New World folder is only checked for
-// existing here; whether it really is New World is checked when the player
-// presses Play. The copy folder becomes <picked>\AzothClient (see copyDirFor)
+// SaveConfig saves the settings. The player name and the server address are
+// checked here (an empty server means the build's own). The New World folder
+// is only checked for existing; whether it really is New World is checked when the player
+// presses Play. The copy folder becomes <picked>\QuintessenceClient (see copyDirFor)
 // and has to be outside the game. When the copy moves, the old one is deleted
 // (client.RemoveCopy) and the next Play builds it in the new folder.
 func (a *App) SaveConfig(c config.Config) (config.Config, error) {
+	c.PlayerName = strings.TrimSpace(c.PlayerName)
+	if c.PlayerName != "" {
+		if err := checkName(c.PlayerName); err != nil {
+			return a.snapshot(), err
+		}
+	}
+	c.Server = strings.TrimSpace(c.Server)
+	if c.Server != "" {
+		if _, err := serverFor(c); err != nil {
+			return a.snapshot(), err
+		}
+	}
 	c.GameDir = cleanPath(c.GameDir)
 	if c.GameDir != "" {
 		if _, err := os.Stat(c.GameDir); err != nil {
@@ -154,11 +149,20 @@ func (a *App) SaveConfig(c config.Config) (config.Config, error) {
 	return c, nil
 }
 
+// DefaultServer is the server this build was made for as host:port, or "" if none.
+func (a *App) DefaultServer() string {
+	gw, err := parseGateway(gatewayHost, gatewayPort)
+	if err != nil {
+		return ""
+	}
+	return gw.addr
+}
+
 // DefaultCopyDir is where the game copy lives when no folder is picked.
 func (a *App) DefaultCopyDir() string { return client.IsolatedCopyDir(config.DataDir()) }
 
-// PickCopyDir opens the folder picker for the game copy. The copy goes in an
-// AzothClient folder inside the folder picked here.
+// PickCopyDir opens the folder picker for the game copy. The copy goes in a
+// QuintessenceClient folder inside the folder picked here.
 func (a *App) PickCopyDir() (string, error) {
 	start := filepath.Dir(a.snapshot().CopyDir)
 	if _, err := os.Stat(start); err != nil || a.snapshot().CopyDir == "" {
@@ -226,81 +230,9 @@ func (a *App) CancelSearch() {
 	}
 }
 
-// GetAccount returns the stored Discord login (an expired session counts as logged out).
-func (a *App) GetAccount() AccountInfo {
-	s, ok := account.Load(config.DataDir())
-	if !ok {
-		return AccountInfo{}
-	}
-	return AccountInfo{LoggedIn: true, ID: s.User.ID, Name: s.User.Name, Expires: s.Expires}
-}
-
-// LoginDiscord opens the browser on the account site's Discord login and waits
-// for it to come back (up to account.LoginTimeout). The session is stored
-// encrypted with DPAPI in account.dat.
-func (a *App) LoginDiscord() (AccountInfo, error) {
-	if err := account.ValidateURL(accountURL); err != nil {
-		return a.GetAccount(), errBadAccountAt
-	}
-	if !a.setBusy(true) {
-		return a.GetAccount(), errors.New("Something is already in progress.")
-	}
-	defer a.setBusy(false)
-	open := func(u string) error {
-		runtime.BrowserOpenURL(a.ctx, u)
-		return nil
-	}
-	ctx, cancel := context.WithCancel(a.ctx)
-	a.mu.Lock()
-	a.loginCancel = cancel
-	a.mu.Unlock()
-	defer func() {
-		a.mu.Lock()
-		a.loginCancel = nil
-		a.mu.Unlock()
-		cancel()
-	}()
-	s, err := account.Login(ctx, accountURL, open)
-	if errors.Is(err, context.Canceled) {
-		return a.GetAccount(), account.ErrDenied
-	}
-	if errors.Is(err, account.ErrNotAllowed) {
-		return a.GetAccount(), errors.New(msgNotAllowed)
-	}
-	if err != nil {
-		return a.GetAccount(), err
-	}
-	if err := account.Save(config.DataDir(), s); err != nil {
-		return a.GetAccount(), fmt.Errorf("Couldn't save the login: %w", err)
-	}
-	info := a.GetAccount()
-	a.emit(evAccount, info)
-	return info, nil
-}
-
-// CancelLogin gives up on the login in progress (the person closed the browser tab).
-func (a *App) CancelLogin() {
-	a.mu.Lock()
-	cancel := a.loginCancel
-	a.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-}
-
-// Logout deletes the stored session.
-func (a *App) Logout() AccountInfo {
-	if err := account.Clear(config.DataDir()); err != nil {
-		runtime.LogWarning(a.ctx, "account: "+err.Error())
-	}
-	info := a.GetAccount()
-	a.emit(evAccount, info)
-	return info
-}
-
 // Launch starts the game with the in-memory patches. It refuses without a
-// Discord login. Progress goes out as evStatus events; the result carries the
-// error text, if any. Neither the session nor the ticket is ever logged or shown.
+// player name. Progress goes out as evStatus events; the result carries the
+// error text, if any.
 func (a *App) Launch() PlayResult {
 	if !a.setBusy(true) {
 		return PlayResult{Error: "Something is already in progress."}
@@ -313,20 +245,18 @@ func (a *App) Launch() PlayResult {
 }
 
 func (a *App) play() error {
-	gw, err := parseGateway(gatewayHost, gatewayPort)
+	cfg := a.snapshot()
+	gw, err := serverFor(cfg)
 	if err != nil {
 		return err
 	}
-	dataDir := config.DataDir()
-	sess, ok := account.Load(dataDir)
-	if !ok {
-		return errNotLoggedIn
+	if cfg.PlayerName == "" {
+		return errNoName
 	}
-	binDir, err := prepareGame(a.snapshot().GameDir, copyRoot(a.snapshot()), a.setStatus)
-	if err != nil {
+	if err := checkName(cfg.PlayerName); err != nil {
 		return err
 	}
-	ticket, err := a.ticket(dataDir, sess)
+	binDir, err := prepareGame(cfg.GameDir, copyRoot(cfg), a.setStatus)
 	if err != nil {
 		return err
 	}
@@ -335,33 +265,10 @@ func (a *App) play() error {
 		BinDir:      binDir,
 		GatewayAddr: gw.addr,
 		PingHost:    gw.host,
-		Persona:     ticket,
+		Persona:     cfg.PlayerName,
 	})
 	if err != nil { // Launch already killed the process if a patch failed
 		return startError(err)
 	}
 	return nil
-}
-
-// ticket trades the stored session for the ticket that goes into the game as
-// the persona, and turns the account server's answers into texts for the player.
-func (a *App) ticket(dataDir string, s account.Session) (string, error) {
-	if err := account.ValidateURL(accountURL); err != nil {
-		return "", errBadAccountAt
-	}
-	ctx, cancel := context.WithTimeout(a.ctx, ticketTimeout)
-	defer cancel()
-	ticket, _, err := account.Ticket(ctx, accountURL, s.Token)
-	switch {
-	case err == nil:
-		return ticket, nil
-	case errors.Is(err, account.ErrSessionExpired):
-		_ = account.Clear(dataDir)
-		a.emit(evAccount, AccountInfo{})
-		return "", errors.New("Your login expired. Log in with Discord again.")
-	case errors.Is(err, account.ErrNotAllowed): // the session stays: only access is missing
-		return "", errors.New(msgNotAllowed)
-	default:
-		return "", fmt.Errorf("Could not reach the account server: %w", err)
-	}
 }

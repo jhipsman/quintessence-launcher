@@ -15,7 +15,7 @@ import (
 
 // ErrSteamInstall is returned when the folder to run from is an install of the
 // game (Steam or otherwise): a project rule, we never run or patch inside it.
-var ErrSteamInstall = errors.New("this is the game's install folder; Azoth only runs on an isolated copy (it never touches the install)")
+var ErrSteamInstall = errors.New("this is the game's install folder; Quintessence only runs on an isolated copy (it never touches the install)")
 
 // ErrUnsupportedBuild is returned when the sha256 does not match the supported build.
 var ErrUnsupportedBuild = errors.New("unsupported NewWorld.exe build")

@@ -4,18 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/KyzaBOY/azoth-launcher/internal/account"
-	"github.com/KyzaBOY/azoth-launcher/internal/client"
-	"github.com/KyzaBOY/azoth-launcher/internal/config"
+	"quintessence-launcher/internal/client"
+	"quintessence-launcher/internal/config"
 )
 
 // newTestApp makes an App with a private data directory and a recorded event log.
@@ -34,11 +30,11 @@ func newTestApp(t *testing.T) (*App, *[]string) {
 	return a, &events
 }
 
-func setBuildSettings(t *testing.T, host, port, acct string) {
+func setBuildSettings(t *testing.T, host, port string) {
 	t.Helper()
-	oldH, oldP, oldA := gatewayHost, gatewayPort, accountURL
-	gatewayHost, gatewayPort, accountURL = host, port, acct
-	t.Cleanup(func() { gatewayHost, gatewayPort, accountURL = oldH, oldP, oldA })
+	oldH, oldP := gatewayHost, gatewayPort
+	gatewayHost, gatewayPort = host, port
+	t.Cleanup(func() { gatewayHost, gatewayPort = oldH, oldP })
 }
 
 func TestParseGateway(t *testing.T) {
@@ -52,9 +48,6 @@ func TestParseGateway(t *testing.T) {
 	if _, err := parseGateway("   ", "6000"); err != errNoServer {
 		t.Fatalf("blank host: %v", err)
 	}
-	if !strings.Contains(errNoServer.Error(), "This build has no server configured. Download the official launcher from projectazoth.com.") {
-		t.Fatalf("errNoServer text: %v", errNoServer)
-	}
 	for _, port := range []string{"", "0", "-1", "65536", "70000", "abc", "60 00"} {
 		if _, err := parseGateway("play.example.test", port); err != errBadServer {
 			t.Fatalf("port %q: %v", port, err)
@@ -67,6 +60,62 @@ func TestParseGateway(t *testing.T) {
 	}
 	if gw, err := parseGateway("play.example.test", "65535"); err != nil || gw.addr != "play.example.test:65535" {
 		t.Fatalf("port 65535: %+v %v", gw, err)
+	}
+}
+
+func TestServerFor(t *testing.T) {
+	setBuildSettings(t, "build.example.test", "7000")
+	if gw, err := serverFor(config.Config{}); err != nil || gw.addr != "build.example.test:7000" {
+		t.Fatalf("build default: %+v %v", gw, err)
+	}
+	if gw, err := serverFor(config.Config{Server: " 127.0.0.1:6000 "}); err != nil || gw.host != "127.0.0.1" || gw.addr != "127.0.0.1:6000" {
+		t.Fatalf("setting: %+v %v", gw, err)
+	}
+	for _, bad := range []string{"127.0.0.1", "host:", ":6000", "host:abc", "a b:6000", "http://host:6000"} {
+		if _, err := serverFor(config.Config{Server: bad}); err != errBadServer && err != errNoServer {
+			t.Fatalf("%q: %v", bad, err)
+		}
+	}
+	setBuildSettings(t, "", "")
+	if _, err := serverFor(config.Config{}); err != errNoServer {
+		t.Fatalf("no server anywhere: %v", err)
+	}
+}
+
+func TestCheckName(t *testing.T) {
+	for _, ok := range []string{"Bob", "alice_99", "Dark-Knight", strings.Repeat("x", 32)} {
+		if err := checkName(ok); err != nil {
+			t.Fatalf("%q: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ab", strings.Repeat("x", 33), "two words", "émile", "a;b", "tab\tx"} {
+		if err := checkName(bad); err != errBadName {
+			t.Fatalf("%q accepted: %v", bad, err)
+		}
+	}
+}
+
+func TestSaveConfigNameAndServer(t *testing.T) {
+	a, _ := newTestApp(t)
+	got, err := a.SaveConfig(config.Config{PlayerName: " Alice ", Server: " 127.0.0.1:6000 "})
+	if err != nil || got.PlayerName != "Alice" || got.Server != "127.0.0.1:6000" {
+		t.Fatalf("save: %+v %v", got, err)
+	}
+	if c, err := config.Load(); err != nil || c.PlayerName != "Alice" || c.Server != "127.0.0.1:6000" {
+		t.Fatalf("on disk: %+v %v", c, err)
+	}
+	// refused, and the previous values stay
+	for name, c := range map[string]config.Config{
+		"bad name":   {PlayerName: "a b", Server: "127.0.0.1:6000"},
+		"bad server": {PlayerName: "Alice", Server: "127.0.0.1"},
+	} {
+		if got, err := a.SaveConfig(c); err == nil || got.PlayerName != "Alice" || got.Server != "127.0.0.1:6000" {
+			t.Fatalf("%s: accepted (%+v %v)", name, got, err)
+		}
+	}
+	// both may be cleared
+	if got, err := a.SaveConfig(config.Config{}); err != nil || got.PlayerName != "" || got.Server != "" {
+		t.Fatalf("clear: %+v %v", got, err)
 	}
 }
 
@@ -107,13 +156,13 @@ func TestSaveConfigCopyDir(t *testing.T) {
 	}
 	base := t.TempDir()
 
-	// the copy goes in an AzothClient folder inside the picked one
+	// the copy goes in a QuintessenceClient folder inside the picked one
 	got, err := a.SaveConfig(config.Config{CopyDir: `"` + base + `"`})
 	want := filepath.Join(base, copyFolderName)
 	if err != nil || got.CopyDir != want || copyRoot(a.GetConfig()) != want {
 		t.Fatalf("save: %+v %v", got, err)
 	}
-	// picking that AzothClient folder again keeps it as it is
+	// picking that QuintessenceClient folder again keeps it as it is
 	if got, err := a.SaveConfig(config.Config{CopyDir: want}); err != nil || got.CopyDir != want {
 		t.Fatalf("save again: %+v %v", got, err)
 	}
@@ -219,7 +268,7 @@ func TestPrepareGameErrors(t *testing.T) {
 	if len(statuses) == 0 || statuses[0] != statusChecking {
 		t.Fatalf("statuses = %v", statuses)
 	}
-	if want := "This New World version isn't supported. Azoth needs build 1.400.6031."; errUnsupported.Error() != want {
+	if want := "This New World version isn't supported. Quintessence needs build 1.400.6031."; errUnsupported.Error() != want {
 		t.Fatalf("unsupported text: %q", errUnsupported)
 	}
 	// nothing was built in the copy folder for a refused build
@@ -231,21 +280,20 @@ func TestPrepareGameErrors(t *testing.T) {
 func TestLaunchRefusals(t *testing.T) {
 	a, events := newTestApp(t)
 
-	// no server compiled in
-	setBuildSettings(t, "", "", "https://projectazoth.com")
+	// no server compiled in and none in the settings
+	setBuildSettings(t, "", "")
 	if r := a.Launch(); r.OK || r.Error != errNoServer.Error() {
 		t.Fatalf("no server: %+v", r)
 	}
 
-	// server, but not logged in: Launch refuses on its own, whatever the screen does
-	setBuildSettings(t, "play.example.test", "6000", "https://projectazoth.com")
-	if r := a.Launch(); r.OK || r.Error != errNotLoggedIn.Error() {
-		t.Fatalf("not logged in: %+v", r)
+	// server, but no player name: Launch refuses on its own, whatever the screen does
+	setBuildSettings(t, "play.example.test", "6000")
+	if r := a.Launch(); r.OK || r.Error != errNoName.Error() {
+		t.Fatalf("no name: %+v", r)
 	}
 
-	// logged in, no folder
-	sess := account.Session{Token: "tok", Expires: time.Now().Add(time.Hour).Unix(), User: account.User{ID: "1", Name: "alice"}}
-	if err := account.Save(config.DataDir(), sess); err != nil {
+	// a name, no folder
+	if _, err := a.SaveConfig(config.Config{PlayerName: "Alice"}); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.Launch(); r.OK || r.Error != errNoFolder.Error() {
@@ -272,68 +320,6 @@ func TestLaunchIsSerialized(t *testing.T) {
 		t.Fatal("setBusy must refuse while busy")
 	}
 	a.setBusy(false)
-}
-
-func TestTicketErrors(t *testing.T) {
-	a, events := newTestApp(t)
-	var status int
-	var gotAuth string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth = r.Header.Get("Authorization")
-		if status != 0 {
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(`{"error":"not allowed"}`))
-			return
-		}
-		_, _ = w.Write([]byte(`{"ticket":"az1-ticket","expires":4102444800}`))
-	}))
-	defer srv.Close()
-	setBuildSettings(t, "play.example.test", "6000", srv.URL)
-
-	dataDir := config.DataDir()
-	sess := account.Session{Token: "tok", Expires: time.Now().Add(time.Hour).Unix(), User: account.User{ID: "1", Name: "alice"}}
-	if err := account.Save(dataDir, sess); err != nil {
-		t.Fatal(err)
-	}
-
-	tk, err := a.ticket(dataDir, sess)
-	if err != nil || tk != "az1-ticket" || gotAuth != "Bearer tok" {
-		t.Fatalf("ok: %q %v (auth %q)", tk, err, gotAuth)
-	}
-
-	// 403: the access-list message, and the session is NOT cleared
-	status = http.StatusForbidden
-	if _, err := a.ticket(dataDir, sess); err == nil || err.Error() != "Your Discord account doesn't have access yet. The playtest is closed for now." {
-		t.Fatalf("403: %v", err)
-	}
-	if _, ok := account.Load(dataDir); !ok {
-		t.Fatal("a 403 must not clear the session")
-	}
-
-	// 401: expired, the session is cleared and the screen is told
-	status = http.StatusUnauthorized
-	before := len(*events)
-	if _, err := a.ticket(dataDir, sess); err == nil || !strings.Contains(err.Error(), "login expired") {
-		t.Fatalf("401: %v", err)
-	}
-	if _, ok := account.Load(dataDir); ok {
-		t.Fatal("a 401 must clear the session")
-	}
-	if len(*events) != before+1 || (*events)[before] != evAccount {
-		t.Fatalf("events = %v", *events)
-	}
-
-	// anything else: a network-style message, never the token
-	status = http.StatusInternalServerError
-	if _, err := a.ticket(dataDir, sess); err == nil || !strings.Contains(err.Error(), "Could not reach the account server") || strings.Contains(err.Error(), "Bearer") {
-		t.Fatalf("500: %v", err)
-	}
-
-	// an insecure account address is refused before anything is sent
-	setBuildSettings(t, "play.example.test", "6000", "http://projectazoth.com")
-	if _, err := a.ticket(dataDir, sess); !errors.Is(err, errBadAccountAt) {
-		t.Fatalf("insecure url: %v", err)
-	}
 }
 
 func TestStartError(t *testing.T) {

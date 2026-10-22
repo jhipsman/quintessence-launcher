@@ -1,4 +1,4 @@
-module github.com/KyzaBOY/azoth-launcher
+module quintessence-launcher
 
 go 1.26.0
 

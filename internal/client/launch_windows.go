@@ -17,7 +17,7 @@ type LaunchOptions struct {
 	BinDir      string       // Bin64 folder of the isolated copy (becomes the game's cwd)
 	GatewayAddr string       // host:port of the gateway
 	PingHost    string       // patch #3: host the ICMP pinger measures ("" = leave the original one)
-	Persona     string       // patch #4: persona of the stubbed login (the Discord ticket); "" = Windows user name
+	Persona     string       // patch #4: persona of the stubbed login (the player name); "" = Windows user name
 	Log         func(string) // gets every step as text (optional)
 }
 
@@ -40,7 +40,7 @@ type LaunchResult struct {
 	PingPatchedInMem bool   // true = the launcher wrote it
 
 	PingHost       string // patch #3: the host the ICMP pinger measures
-	PersonaPatched bool   // patch #4: persona = ticket (the value is never part of the report)
+	PersonaPatched bool   // patch #4: persona = the player name
 }
 
 // ErrPatchFailed wraps every error that made Launch kill the suspended process
@@ -181,14 +181,14 @@ func Launch(opts LaunchOptions) (*LaunchResult, error) {
 		logf("[ping-host] the menu ping measures %s (no hosts file, no proxy)", opts.PingHost)
 	}
 
-	// ---- patch #4: persona = the Discord login ticket ----------------------
+	// ---- patch #4: persona = the player name -------------------------------
 	if opts.Persona != "" {
 		if err := applyRedirect(pi.Process, base, PersonaRedirect, opts.Persona, logf); err != nil {
 			return kill(err)
 		}
 		res.PersonaPatched = true
 	} else {
-		logf("[persona] not logged in: the client uses the Windows user name as persona")
+		logf("[persona] no player name: the client uses the Windows user name as persona")
 	}
 
 	if _, err := windows.ResumeThread(pi.Thread); err != nil {

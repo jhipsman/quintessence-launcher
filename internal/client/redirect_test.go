@@ -44,11 +44,11 @@ func TestRedirectValue(t *testing.T) {
 }
 
 // TestRedirectSitesInExe checks the original bytes in the real exe when
-// AZOTH_CLIENT_BIN points at a Bin64 folder (the exe never goes in the repo).
+// NW_CLIENT_BIN points at a Bin64 folder (the exe never goes in the repo).
 func TestRedirectSitesInExe(t *testing.T) {
-	bin := os.Getenv("AZOTH_CLIENT_BIN")
+	bin := os.Getenv("NW_CLIENT_BIN")
 	if bin == "" {
-		t.Skip("AZOTH_CLIENT_BIN not set")
+		t.Skip("NW_CLIENT_BIN not set")
 	}
 	f, err := os.Open(filepath.Join(bin, ExeName))
 	if err != nil {
